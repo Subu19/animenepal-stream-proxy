@@ -12,6 +12,7 @@
     "deploy:worker": "wrangler deploy",
     "dev:desktop": "tauri dev",
     "build:desktop": "tauri build",
+    "tauri": "tauri",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
