@@ -2,68 +2,215 @@
 
 use axum::{
     extract::Query,
-    http::StatusCode,
+    http::{HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
     Router,
 };
 use reqwest::Client;
 use serde::Deserialize;
+use std::collections::HashMap;
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Deserialize)]
 struct ProxyQuery {
     url: String,
     referer: Option<String>,
-    headers: Option<String>, // We'll ignore complex header parsing in this minimal version
+    headers: Option<String>,
 }
 
 async fn proxy_handler(Query(params): Query<ProxyQuery>) -> impl IntoResponse {
     let client = Client::new();
 
-    let mut request = client.get(&params.url)
-        .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-        .header("Accept", "*/*")
-        .header("Sec-Fetch-Mode", "cors")
-        .header("Sec-Fetch-Site", "cross-site");
+    // Parse provided headers
+    let mut parsed_headers: HashMap<String, String> = HashMap::new();
+    if let Some(headers_str) = &params.headers {
+        if let Ok(h) = serde_json::from_str::<HashMap<String, String>>(headers_str) {
+            parsed_headers = h;
+        } else {
+            eprintln!("Proxy headers parse error");
+        }
+    }
 
-    let referer_url = params
-        .referer
-        .clone()
+    if let Some(referer) = &params.referer {
+        if !parsed_headers.contains_key("Referer") && !parsed_headers.contains_key("referer") {
+            parsed_headers.insert("Referer".to_string(), referer.clone());
+        }
+    }
+
+    // Determine Referer and Origin
+    let referer_url = parsed_headers
+        .get("Referer")
+        .or_else(|| parsed_headers.get("referer"))
+        .cloned()
         .unwrap_or_else(|| "https://megacloud.blog/".to_string());
-    request = request.header("Referer", &referer_url);
 
-    match request.send().await {
-        Ok(res) => {
-            let mut builder = Response::builder().status(res.status().as_u16());
+    let target_origin = url::Url::parse(&referer_url)
+        .map(|u| u.origin().ascii_serialization())
+        .unwrap_or_else(|_| "https://megacloud.blog".to_string());
 
-            // Forward headers
-            for (name, value) in res.headers() {
-                if name != "transfer-encoding" && name != "content-encoding" {
-                    builder = builder.header(name.as_str(), value.as_bytes());
-                }
+    // Build Reqwest Headers
+    let mut fetch_headers = reqwest::header::HeaderMap::new();
+
+    // Default headers from original Node.js implementation
+    let default_headers = vec![
+        ("Referer", referer_url.as_str()),
+        ("Origin", target_origin.as_str()),
+        ("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"),
+        ("Accept", "*/*"),
+        ("Accept-Language", "en-US,en;q=0.9"),
+        ("Cache-Control", "no-cache"),
+        ("Pragma", "no-cache"),
+        ("Sec-Ch-Ua", "\"Chrome\";v=\"122\", \"Not(A:Brand\";v=\"24\", \"Google Chrome\";v=\"122\""),
+        ("Sec-Ch-Ua-Mobile", "?0"),
+        ("Sec-Ch-Ua-Platform", "\"Windows\""),
+        ("Sec-Fetch-Dest", "empty"),
+        ("Sec-Fetch-Mode", "cors"),
+        ("Sec-Fetch-Site", "cross-site"),
+        ("Upgrade-Insecure-Requests", "1"),
+    ];
+
+    for (k, v) in default_headers {
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(v),
+        ) {
+            fetch_headers.insert(name, value);
+        }
+    }
+
+    // Apply custom headers override
+    for (k, v) in parsed_headers {
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(k.as_bytes()),
+            HeaderValue::from_str(&v),
+        ) {
+            fetch_headers.insert(name, value);
+        }
+    }
+
+    // Fetch the target URL
+    let res = match client.get(&params.url).headers(fetch_headers).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Proxy fetch failed: {}", e);
+            return Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(axum::body::Body::from(format!("Proxy Error: {}", e)))
+                .unwrap();
+        }
+    };
+
+    let status = res.status();
+    if !status.is_success() {
+        eprintln!("Proxy fetch failed for {} (Status: {})", params.url, status);
+        return Response::builder()
+            .status(status.as_u16())
+            .body(axum::body::Body::from(format!(
+                "Proxy fetch failed: {}",
+                status
+            )))
+            .unwrap();
+    }
+
+    let content_type = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+
+    let is_m3u8 = params.url.contains(".m3u8")
+        || content_type.contains("application/vnd.apple.mpegurl")
+        || content_type.contains("audio/mpegurl");
+
+    // Rewrite HLS manifest
+    if is_m3u8 {
+        let text = res.text().await.unwrap_or_default();
+        let base_url = if let Some(idx) = params.url.rfind('/') {
+            &params.url[..idx + 1]
+        } else {
+            &params.url
+        };
+
+        let mut lines = Vec::new();
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                lines.push(line.to_string());
+                continue;
             }
 
-            builder = builder.header("Access-Control-Allow-Origin", "*");
+            let absolute_url = if trimmed.starts_with("http") {
+                trimmed.to_string()
+            } else {
+                match url::Url::parse(base_url).and_then(|b| b.join(trimmed)) {
+                    Ok(u) => u.to_string(),
+                    Err(_) => trimmed.to_string(),
+                }
+            };
 
-            // For simplicity, we are pulling the full bytes into memory.
-            // In a production app you'd want to stream this using axum::body::Body::from_stream
-            let body = res.bytes().await.unwrap_or_default();
-            builder.body(axum::body::Body::from(body)).unwrap()
+            let encoded_url = urlencoding::encode(&absolute_url);
+            let mut proxy_url = format!("http://127.0.0.1:4696/proxy?url={}", encoded_url);
+
+            if let Some(h) = &params.headers {
+                proxy_url = format!("{}&headers={}", proxy_url, urlencoding::encode(h));
+            } else if let Some(r) = &params.referer {
+                proxy_url = format!("{}&referer={}", proxy_url, urlencoding::encode(r));
+            }
+
+            lines.push(proxy_url);
         }
-        Err(e) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(axum::body::Body::from(format!("Proxy error: {}", e)))
-            .unwrap(),
+
+        let body = lines.join("\n");
+        let content_type = if content_type.is_empty() {
+            "application/vnd.apple.mpegurl"
+        } else {
+            &content_type
+        };
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", content_type)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Cache-Control", "no-cache")
+            .body(axum::body::Body::from(body))
+            .unwrap()
+    } else {
+        // Return raw bytes for segments/other files
+        let bytes = res.bytes().await.unwrap_or_default();
+        let content_type = if content_type.is_empty() {
+            "application/octet-stream"
+        } else {
+            &content_type
+        };
+
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", content_type)
+            .header("Access-Control-Allow-Origin", "*")
+            .header("Cache-Control", "max-age=3600")
+            .body(axum::body::Body::from(bytes))
+            .unwrap()
     }
 }
 
 async fn run_axum() {
-    let app = Router::new().route("/proxy", get(proxy_handler));
+    // Implement permissive CORS (Fixes the 403 error for browser preflight OPTIONS requests)
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
+    let app = Router::new()
+        .route("/proxy", get(proxy_handler))
+        .layer(cors);
+
+    // Using port 4696 as defined in your setup
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:4696")
         .await
         .unwrap();
-    println!("Background Axum Proxy running on http://127.0.0.1:8080");
+    println!("Background Axum Proxy running on http://127.0.0.1:4696");
 
     axum::serve(listener, app).await.unwrap();
 }

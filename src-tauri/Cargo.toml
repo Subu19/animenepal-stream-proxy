@@ -26,4 +26,6 @@ tauri-plugin-log = "2"
 axum = "0.8.4"
 tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
 reqwest = { version = "0.13.2", features = ["rustls", "stream", "json"] }
-tower-http = "0.6.8"
+tower-http = { version = "0.6.8", features = ["cors"] }
+url = "2.5.8"
+urlencoding = "2.1.3"
