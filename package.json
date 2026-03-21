@@ -1,0 +1,26 @@
+{
+  "name": "animenepal-proxy",
+  "version": "1.0.0",
+  "description": "Hono proxy server supporting both Node.js and Cloudflare Workers",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "scripts": {
+    "dev:node": "tsx watch src/server.ts",
+    "start:node": "tsx src/server.ts",
+    "dev:worker": "wrangler dev",
+    "deploy:worker": "wrangler deploy",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.11",
+    "hono": "^4.12.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.76.0"
+  }
+}
