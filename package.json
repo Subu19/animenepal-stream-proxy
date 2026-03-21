@@ -10,6 +10,8 @@
     "start:node": "tsx src/server.ts",
     "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
+    "dev:desktop": "tauri dev",
+    "build:desktop": "tauri build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
@@ -18,6 +20,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^25.5.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
