@@ -1,66 +1,254 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>AnimeProxy Background Service</title>
-        <style>
-            body {
-                font-family:
-                    system-ui,
-                    -apple-system,
-                    BlinkMacSystemFont,
-                    "Segoe UI",
-                    Roboto,
-                    Oxygen,
-                    Ubuntu,
-                    Cantarell,
-                    "Open Sans",
-                    "Helvetica Neue",
-                    sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                margin: 0;
-                background-color: #1a1a1a;
-                color: #f0f0f0;
-            }
-            h1 {
-                color: #4caf50;
-            }
-            .status {
-                padding: 1rem 2rem;
-                background-color: #2a2a2a;
-                border-radius: 8px;
-                border: 1px solid #333;
-                margin-top: 1rem;
-                text-align: center;
-            }
-            .port {
-                font-family: monospace;
-                font-size: 1.2rem;
-                color: #64b5f6;
-                background: #222;
-                padding: 0.2rem 0.5rem;
-                border-radius: 4px;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>AnimeProxy is Active</h1>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnimeProxy</title>
+    <style>
+        :root {
+            --bg-color: #0b1121; /* Dark blueish background from the image */
+            --glass-bg: rgba(20, 27, 45, 0.6); /* Glassy panel background */
+            --glass-border: rgba(255, 255, 255, 0.08); /* Subtle white border */
+            --text-main: #ffffff;
+            --text-muted: #8b95a5;
+            --accent-on: #26C836; /* The requested green */
+            --accent-glow: rgba(38, 200, 54, 0.3);
+            --accent-off: #2a3143;
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
 
-        <div class="status">
-            <p>Local proxy server is running in the background.</p>
-            <p>
-                Listening on
-                <span class="port">http://127.0.0.1:4696/proxy</span>
-            </p>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+            background: radial-gradient(circle at top, #111a30 0%, #080c17 100%);
+            color: var(--text-main);
+            font-family: var(--font-family);
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* Glassy Container for the whole app content */
+        .app-container {
+            width: 90%;
+            max-width: 400px;
+            padding: 3rem 2rem;
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2.5rem;
+        }
+
+        .brand-logo {
+            font-weight: 800;
+            font-size: 1.8rem;
+            color: var(--text-main);
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+        }
+
+        .brand-logo span {
+            color: var(--accent-on);
+        }
+
+        .status-text {
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            transition: color 0.3s, text-shadow 0.3s;
+            margin-top: 0.2rem;
+            letter-spacing: 2px;
+        }
+
+        .status-text.active {
+            color: var(--accent-on);
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* Toggle Button Styles (Glassy & Green) */
+        .toggle-container {
+            position: relative;
+            width: 120px;
+            height: 240px;
+            background: rgba(15, 20, 35, 0.8);
+            border-radius: 60px;
+            border: 1px solid var(--glass-border);
+            box-shadow: inset 0 6px 15px rgba(0,0,0,0.5), 0 0 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: all 0.4s ease;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 8px;
+            box-sizing: border-box;
+            margin-bottom: 2rem;
+        }
+
+        .toggle-container.active {
+            background: rgba(20, 50, 30, 0.6);
+            border-color: rgba(38, 200, 54, 0.4);
+            box-shadow: inset 0 6px 15px rgba(0,0,0,0.4), 0 0 30px var(--accent-glow);
+        }
+
+        .toggle-knob {
+            width: 102px;
+            height: 102px;
+            background: linear-gradient(145deg, #2a334a, #1c2235);
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255,255,255,0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .toggle-container.active .toggle-knob {
+            transform: translateY(120px);
+            background: linear-gradient(145deg, #2fc43d, #1e9d29);
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.3), 0 0 20px var(--accent-glow), inset 0 1px 2px rgba(255,255,255,0.4);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        /* Decorative icon/lines inside knob */
+        .toggle-knob::after {
+            content: '';
+            width: 28px;
+            height: 4px;
+            background: #667085;
+            border-radius: 2px;
+            transition: background 0.4s;
+        }
+        
+        .toggle-container.active .toggle-knob::after {
+            background: #ffffff;
+            box-shadow: 0 0 5px rgba(255,255,255,0.8);
+        }
+
+        /* Glassy Info Panel */
+        .info-panel {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            padding: 1.2rem;
+            text-align: center;
+            box-sizing: border-box;
+            backdrop-filter: blur(8px);
+        }
+
+        .info-panel p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .ip-address {
+            font-family: inherit;
+            font-size: 1.2rem;
+            color: var(--accent-on);
+            margin-top: 0.5rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .minimize-hint {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            color: #5b657a;
+            font-weight: 400;
+            text-align: center;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="header">
+            <div class="brand-logo">Anime<span>Proxy</span></div>
+            <div class="status-text" id="status-text">DISCONNECTED</div>
         </div>
 
-        <p style="opacity: 0.7; font-size: 0.9em; margin-top: 2rem">
-            You can safely minimize this window.
-        </p>
-    </body>
+        <div class="toggle-container" id="toggle-btn">
+            <div class="toggle-knob"></div>
+        </div>
+
+        <div class="info-panel">
+            <p>LOCAL PROXY BINDING</p>
+            <div class="ip-address" id="ip-address">127.0.0.1:4696</div>
+        </div>
+        
+        <div class="minimize-hint">You can safely close this window.</div>
+    </div>
+
+    <script>
+        const invoke = window.__TAURI__.core.invoke;
+        
+        const toggleBtn = document.getElementById('toggle-btn');
+        const statusText = document.getElementById('status-text');
+        const ipAddress = document.getElementById('ip-address');
+        
+        let isConnected = true;
+
+        async function updateUIState(state) {
+            isConnected = state;
+            if (isConnected) {
+                toggleBtn.classList.add('active');
+                statusText.innerText = 'SECURED';
+                statusText.classList.add('active');
+                ipAddress.style.opacity = '1';
+                ipAddress.style.color = 'var(--accent-on)';
+            } else {
+                toggleBtn.classList.remove('active');
+                statusText.innerText = 'DISCONNECTED';
+                statusText.classList.remove('active');
+                ipAddress.style.opacity = '0.5';
+                ipAddress.style.color = 'var(--text-muted)';
+            }
+        }
+
+        // Fetch initial state
+        invoke('get_proxy_state').then((state) => {
+            updateUIState(state);
+        }).catch((e) => {
+            console.error("Failed to get proxy state. Ensure backend is running.", e);
+        });
+
+        // Handle click event (with debounce)
+        let isAnimating = false;
+        toggleBtn.addEventListener('click', async () => {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            try {
+                const newState = await invoke('toggle_proxy');
+                updateUIState(newState);
+            } catch (e) {
+                console.error("Failed to toggle proxy:", e);
+            }
+
+            setTimeout(() => {
+                isAnimating = false;
+            }, 400); // Wait for CSS transition to finish
+        });
+    </script>
+</body>
 </html>
