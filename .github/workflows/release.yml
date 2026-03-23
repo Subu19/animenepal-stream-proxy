@@ -1,100 +1,100 @@
 name: Release AnimeProxy
 
 on:
-push:
-branches:
-  - main
+  push:
+    branches:
+      - main
 
 jobs:
-release:
-permissions:
-contents: write
+  release:
+    permissions:
+      contents: write
 
-strategy:
-  fail-fast: false
-  matrix:
-    platform: [macos-latest, ubuntu-22.04, windows-latest]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
 
-runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
 
-steps:
-  - name: Checkout repository
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: 20
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-  - name: Install dependencies
-    run: npm install
+      - name: Install dependencies
+        run: npm install
 
-  - name: Install Rust
-    uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
 
-  - name: Install Linux dependencies
-    if: matrix.platform == 'ubuntu-22.04'
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y \
-        libgtk-3-dev \
-        libwebkit2gtk-4.1-dev \
-        libappindicator3-dev \
-        librsvg2-dev \
-        patchelf \
-        build-essential \
-        curl \
-        wget \
-        file
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file
 
-  - name: Build Tauri App
-    uses: tauri-apps/tauri-action@v0
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    with:
-      tagName: app-v__VERSION__
-      releaseName: "AnimeProxy v__VERSION__"
-      releaseBody: |
-        Automated release of AnimeProxy
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: app-v__VERSION__
+          releaseName: "AnimeProxy v__VERSION__"
+          releaseBody: |
+            Automated release of AnimeProxy
 
-        Linux:
-        - AppImage (portable)
-        - deb (Ubuntu/Debian)
-        - rpm (Fedora)
-        - tar.gz (Arch/Gentoo/Other)
+            Linux:
+            - AppImage (portable)
+            - deb (Ubuntu/Debian)
+            - rpm (Fedora)
+            - tar.gz (Arch/Gentoo/Other)
 
-        Windows:
-        - exe
-        - msi
+            Windows:
+            - exe
+            - msi
 
-        macOS:
-        - dmg
-      releaseDraft: false
-      prerelease: false
+            macOS:
+            - dmg
+          releaseDraft: false
+          prerelease: false
 
-  - name: Package Linux Binary (Arch/Other distros)
-    if: matrix.platform == 'ubuntu-22.04'
-    run: |
-      cd src-tauri/target/release
-      ls
+      - name: Package Linux Binary (Arch/Other distros)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          cd src-tauri/target/release
+          ls
 
-      # rename binary
-      if [ -f app ]; then
-        mv app animenepal-proxy
-      fi
+          # rename binary
+          if [ -f app ]; then
+            mv app animenepal-proxy
+          fi
 
-      chmod +x animeproxy
+          chmod +x animeproxy
 
-      mkdir animeproxy-linux-x64
-      mv animeproxy animeproxy-linux-x64/
+          mkdir animeproxy-linux-x64
+          mv animeproxy animeproxy-linux-x64/
 
-      tar -czf animeproxy-linux-x64.tar.gz animeproxy-linux-x64
+          tar -czf animeproxy-linux-x64.tar.gz animeproxy-linux-x64
 
-  - name: Upload Linux tar.gz
-    if: matrix.platform == 'ubuntu-22.04'
-    uses: softprops/action-gh-release@v2
-    with:
-      tag_name: app-v__VERSION__
-      files: src-tauri/target/release/animeproxy-linux-x64.tar.gz
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload Linux tar.gz
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: app-v__VERSION__
+          files: src-tauri/target/release/animeproxy-linux-x64.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
