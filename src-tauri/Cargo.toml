@@ -1,8 +1,8 @@
 [package]
-name = "app"
+name = "animenepal-proxy"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "AnimeNepalproxy App for scraping videos."
+authors = ["subu19"]
 license = ""
 repository = ""
 edition = "2021"
