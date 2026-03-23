@@ -83,10 +83,10 @@ jobs:
             mv app animenepal-proxy
           fi
 
-          chmod +x animeproxy
+          chmod +x animenepal-proxy
 
           mkdir animeproxy-linux-x64
-          mv animeproxy animeproxy-linux-x64/
+          mv animenepal-proxy animeproxy-linux-x64/
 
           tar -czf animeproxy-linux-x64.tar.gz animeproxy-linux-x64
 
