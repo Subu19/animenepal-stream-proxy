@@ -48,6 +48,7 @@ jobs:
             file
 
       - name: Build Tauri App
+        id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,7 +95,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: app-v__VERSION__
+          tag_name: app-v${{ steps.tauri_build.outputs.appVersion }}
           files: src-tauri/target/release/animeproxy-linux-x64.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
